@@ -8,26 +8,26 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from reportlab.pdfgen import canvas
 import soundfile as sf
-from utils.init import create_app
+from init import create_app
 from utils import lsb_stego 
 from models import User, AudioTrack, WatermarkRecord
 
-
 basedir = os.path.abspath(os.path.dirname(__file__))
-# app = Flask(__name__)
-app = create_app()
-app.config['SECRET_KEY'] = 'secret-key-lsb-123'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database_lsb.db')
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['CERT_FOLDER'] = 'static/certificates'
+
+app_config = {
+    'SECRET_KEY': 'secret-key-lsb-123',
+    'SQLALCHEMY_DATABASE_URI': 'sqlite:///' + os.path.join(basedir, 'database_lsb.db'),
+    'UPLOAD_FOLDER': os.path.join('static', 'uploads'),
+    'CERT_FOLDER': os.path.join('static', 'certificates')
+}
+
+app = create_app(config_updates=app_config)
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['CERT_FOLDER'], exist_ok=True)
 
-db = SQLAlchemy(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-
 
 
 @login_manager.user_loader
@@ -55,7 +55,7 @@ def generate_pdf(track, watermark_code, created_at_time):
     c.drawString(100, 690, f"Власник: {track.owner.email}")
     c.drawString(100, 650, f"Вшитий код (Hidden Payload): {watermark_code}")
     c.drawString(100, 630, f"Метод захисту: LSB Steganography (.wav)")
-    c.drawString(100, 630, f"Дата захисту: {created_at_time}")
+    c.drawString(100, 600, f"Дата захисту: {created_at_time}")
     c.save()
     return filename
 

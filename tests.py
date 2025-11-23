@@ -2,16 +2,16 @@ import unittest
 import os
 import wave
 import shutil
-from app.init import create_app
-from app.app import db, User, AudioTrack, WatermarkRecord
+from init import create_app
+from app import db, User, AudioTrack, WatermarkRecord
 import utils.lsb_stego as lsb_stego
 
 class TestSteganography(unittest.TestCase):
     """
     Тестування модуля lsb_stego.py (Core Logic)
     """
-    TEST_FILE = "test_samples/file_example_WAV_1MG.wav"
-    PROTECTED_FILE = "test_samples/protected_6a74851f_file_example_WAV_1MG.wav"
+    TEST_FILE = "test_samples/file_example_WAV_5MG.wav"
+    PROTECTED_FILE = "test_samples/protected_6a74851f_file_example_WAV_5MG.wav"
 
     def setUp(self):
         with wave.open(self.TEST_FILE, 'wb') as f:
@@ -43,11 +43,11 @@ class TestSteganography(unittest.TestCase):
         decoded_msg = lsb_stego.decode_lsb(self.TEST_FILE)
         self.assertIsNone(decoded_msg, "Чистий файл не повинен містити повідомлення")
 
-    # def test_encode_too_long_message_raises_error(self):
-    #     """Перевищення ємності WAV має викликати ValueError"""
-    #     payload = "A" * 10000
-    #     with self.assertRaises(ValueError):
-    #         lsb_stego.encode_lsb(self.TEST_FILE, self.PROTECTED_FILE, payload)
+    def test_encode_too_long_message_raises_error(self):
+        """Перевищення ємності WAV має викликати ValueError"""
+        payload = "A" * 100000
+        with self.assertRaises(ValueError):
+            lsb_stego.encode_lsb(self.TEST_FILE, self.PROTECTED_FILE, payload)
 
 
 class TestDatabaseModels(unittest.TestCase):
@@ -55,7 +55,6 @@ class TestDatabaseModels(unittest.TestCase):
     Тестування бази даних та моделей (User, AudioTrack)
     """
     def setUp(self):
-        # створюємо окремий тестовий застосунок
         self.app = create_app({
             "TESTING": True,
             "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
