@@ -2,8 +2,9 @@ import unittest
 import os
 import wave
 import shutil
-from app import app, db, User, AudioTrack, WatermarkRecord
-import lsb_stego
+from app.init import create_app
+from app.app import db, User, AudioTrack, WatermarkRecord
+import utils.lsb_stego as lsb_stego
 
 class TestSteganography(unittest.TestCase):
     """
@@ -26,7 +27,8 @@ class TestSteganography(unittest.TestCase):
             os.remove(self.PROTECTED_FILE)
 
     def test_encode_decode_success(self):
-        """Перевірка успішного вбудовування та зчитування коду"""
+        """Перевірка успішного вбудовування та зчитування коду
+        вбудувати повідомлення → зчитати → порівняти"""
         secret_payload = "COPYRIGHT|12345678"
         
         result = lsb_stego.encode_lsb(self.TEST_FILE, self.PROTECTED_FILE, secret_payload)
@@ -41,16 +43,26 @@ class TestSteganography(unittest.TestCase):
         decoded_msg = lsb_stego.decode_lsb(self.TEST_FILE)
         self.assertIsNone(decoded_msg, "Чистий файл не повинен містити повідомлення")
 
+    # def test_encode_too_long_message_raises_error(self):
+    #     """Перевищення ємності WAV має викликати ValueError"""
+    #     payload = "A" * 10000
+    #     with self.assertRaises(ValueError):
+    #         lsb_stego.encode_lsb(self.TEST_FILE, self.PROTECTED_FILE, payload)
+
 
 class TestDatabaseModels(unittest.TestCase):
     """
     Тестування бази даних та моделей (User, AudioTrack)
     """
     def setUp(self):
-        app.config['TESTING'] = True
-        app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-        self.app_context = app.app_context()
+        # створюємо окремий тестовий застосунок
+        self.app = create_app({
+            "TESTING": True,
+            "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
+        })
+        self.app_context = self.app.app_context()
         self.app_context.push()
+
         db.create_all()
 
     def tearDown(self):
@@ -98,6 +110,31 @@ class TestDatabaseModels(unittest.TestCase):
         fetched_wm = WatermarkRecord.query.filter_by(watermark_payload="UUID-CODE-123").first()
         self.assertIsNotNone(fetched_wm)
         self.assertEqual(fetched_wm.track.title, "T")
+
+    def test_create_audio_track(self):
+        """Створення AudioTrack має коректно зберігатися в БД"""
+        user = User(email="x@test.com", password_hash="p")
+        db.session.add(user)
+        db.session.commit()
+        track = AudioTrack(title="Song", artist="Me", filename="a.wav", owner=user)
+        db.session.add(track)
+        db.session.commit()
+        t = AudioTrack.query.first()
+        self.assertEqual(t.title, "Song")
+
+    def test_track_watermark_relationship(self):
+        """Зв’язок Track → Watermark має працювати коректно"""
+        user = User(email="y@test.com", password_hash="p")
+        db.session.add(user)
+        db.session.commit()
+        track = AudioTrack(title="Track", artist="A", owner=user, filename="b.wav")
+        db.session.add(track)
+        db.session.commit()
+        wm = WatermarkRecord(track=track, watermark_payload="WM-1", pdf_certificate="c.pdf")
+        db.session.add(wm)
+        db.session.commit()
+        self.assertEqual(track.watermark.watermark_payload, "WM-1")
+
 
 if __name__ == '__main__':
     unittest.main()

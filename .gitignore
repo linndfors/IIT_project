@@ -209,3 +209,4 @@ __marimo__/
 check_db.py
 database_lsb.db
 static/
+instance/

@@ -8,10 +8,14 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from reportlab.pdfgen import canvas
 import soundfile as sf
+from utils.init import create_app
+from utils import lsb_stego 
+from models import User, AudioTrack, WatermarkRecord
 
-import lsb_stego 
+
 basedir = os.path.abspath(os.path.dirname(__file__))
-app = Flask(__name__)
+# app = Flask(__name__)
+app = create_app()
 app.config['SECRET_KEY'] = 'secret-key-lsb-123'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database_lsb.db')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
@@ -25,40 +29,6 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 
-class User(UserMixin, db.Model):
-    """
-    Модель користувача системи.
-    Зберігає облікові дані та роль користувача (Author/Auditor).
-    """
-    id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128))
-    role = db.Column(db.String(20), default='author')
-    tracks = db.relationship('AudioTrack', backref='owner', lazy=True)
-
-class AudioTrack(db.Model):
-    """
-    Модель аудіо-треку.
-    Зберігає метадані про завантажений файл та посилання на його захищену версію.
-    """
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(100), nullable=False)
-    artist = db.Column(db.String(100), nullable=False)
-    isrc = db.Column(db.String(20))
-    filename = db.Column(db.String(200))
-    owner_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    watermark = db.relationship('WatermarkRecord', backref='track', uselist=False, lazy=True)
-
-class WatermarkRecord(db.Model):
-    """
-    Модель запису про водяний знак.
-    Пов'язує трек з унікальним кодом (Payload), який було вшито у файл.
-    """
-    id = db.Column(db.Integer, primary_key=True)
-    track_id = db.Column(db.Integer, db.ForeignKey('audio_track.id'), nullable=False)
-    watermark_payload = db.Column(db.String(100), unique=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    pdf_certificate = db.Column(db.String(200))
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -221,53 +191,72 @@ def verify():
     Повертає статус PROTECTED (із даними власника) або CLEAN.
     """
     verification_result = None
-    
+
     if request.method == 'POST':
-        file = request.files['file']
-        if file:
-            filename = secure_filename(file.filename)
-            ext = filename.rsplit('.', 1)[1].lower()
-            
-            temp_check_path = os.path.join(app.config['UPLOAD_FOLDER'], "verify_temp_" + filename)
-            file.save(temp_check_path)
-            
-            path_to_scan = temp_check_path
+        file = request.files.get('file')
 
-            if ext == 'mp3':
-                wav_path = temp_check_path + ".wav"
-                try:
-                    data, samplerate = sf.read(temp_check_path)
-                    sf.write(wav_path, data, samplerate)
-                    path_to_scan = wav_path
-                except Exception as e:
-                    print(f"Error converting MP3 during verify: {e}")
-                    pass
+        if not file or file.filename == "":
+            flash("Будь ласка, завантажте файл.")
+            return redirect(url_for('verify'))
 
-            hidden_msg = lsb_stego.decode_lsb(path_to_scan)
-            
-            if os.path.exists(temp_check_path): os.remove(temp_check_path)
-            if ext == 'mp3' and path_to_scan != temp_check_path and os.path.exists(path_to_scan): 
-                os.remove(path_to_scan)
-            
-            if hidden_msg and hidden_msg.startswith("COPYRIGHT|"):
-                extracted_id = hidden_msg.split('|')[1]
-                record = WatermarkRecord.query.filter_by(watermark_payload=extracted_id).first()
-                if record:
-                    track = record.track
-                    verification_result = {
-                        'status': 'PROTECTED',
-                        'method': 'LSB Steganography',
-                        'title': track.title,
-                        'artist': track.artist,
-                        'owner': track.owner.email,
-                        'isrc': track.isrc,
-                        'watermark_id': extracted_id
-                    }
-            
-            if not verification_result:
-                verification_result = {'status': 'CLEAN'}
-                
-    return render_template('verify.html', result=verification_result)
+        filename = secure_filename(file.filename)
+
+        if '.' not in filename:
+            flash("Невірний формат файлу.")
+            return redirect(url_for('verify'))
+
+        ext = filename.rsplit('.', 1)[1].lower()
+
+        if ext not in ['mp3', 'wav']:
+            flash("Дозволені лише файли MP3 та WAV.")
+            return redirect(url_for('verify'))
+
+        temp_check_path = os.path.join(
+            app.config['UPLOAD_FOLDER'], "verify_temp_" + filename
+        )
+        file.save(temp_check_path)
+
+        path_to_scan = temp_check_path
+
+        if ext == 'mp3':
+            wav_path = temp_check_path + ".wav"
+            try:
+                data, samplerate = sf.read(temp_check_path)
+                sf.write(wav_path, data, samplerate)
+                path_to_scan = wav_path
+            except Exception as e:
+                flash(f"Помилка MP3 конвертації: {e}")
+                return redirect(url_for('verify'))
+
+        hidden_msg = lsb_stego.decode_lsb(path_to_scan)
+
+        if os.path.exists(temp_check_path):
+            os.remove(temp_check_path)
+
+        if ext == 'mp3' and path_to_scan != temp_check_path and os.path.exists(path_to_scan):
+            os.remove(path_to_scan)
+
+        if hidden_msg and hidden_msg.startswith("COPYRIGHT|"):
+            extracted_id = hidden_msg.split('|')[1]
+            record = WatermarkRecord.query.filter_by(watermark_payload=extracted_id).first()
+
+            if record:
+                verification_result = {
+                    'status': 'PROTECTED',
+                    'method': 'LSB Steganography',
+                    'title': record.track.title,
+                    'artist': record.track.artist,
+                    'owner': record.track.owner.email,
+                    'isrc': record.track.isrc,
+                    'watermark_id': extracted_id
+                }
+
+        if not verification_result:
+            verification_result = {'status': 'CLEAN'}
+
+        return render_template('verify.html', result=verification_result)
+
+    return render_template('verify.html', result=None)
 
 @app.route('/download_cert/<filename>')
 def download_cert(filename):

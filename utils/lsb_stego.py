@@ -32,6 +32,7 @@ def encode_lsb(input_path, output_path, secret_message):
         bits_list = [int(b) for b in bits]
         
         if len(bits_list) > len(frame_bytes):
+            song.close()
             raise ValueError("Файл занадто малий для цього повідомлення!")
         
         for i, bit in enumerate(bits_list):
@@ -44,6 +45,8 @@ def encode_lsb(input_path, output_path, secret_message):
         
         song.close()
         return True
+    except ValueError:
+        raise
     except Exception as e:
         print(f"LSB Encode Error: {e}")
         return False
