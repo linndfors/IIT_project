@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-header bg-dark text-white">
+                <h3 class="mb-0">Інструмент Аудитора: Перевірка файлу</h3>
+            </div>
+            <div class="card-body">
+                <p class="text-muted">Завантажте підозрілий файл для перевірки на наявність прихованих водяних знаків та інформації про власника.</p>
+                
+                <form method="POST" enctype="multipart/form-data" class="d-flex gap-2 mb-4">
+                    <input type="file" name="file" class="form-control" accept=".wav,.mp3" required>
+                    <button type="submit" class="btn btn-warning px-4">ПЕРЕВІРИТИ</button>
+                </form>
+
+                <hr>
+
+                {% if result %}
+                    {% if result.status == 'PROTECTED' %}
+                        <div class="alert alert-danger border-danger">
+                            <h4 class="alert-heading">⚠️ ФАЙЛ ЗАХИЩЕНО!</h4>
+                            <p>У системі знайдено збіг. Файл містить цифрові маркери власності.</p>
+                            <hr>
+                            <h5>Звіт про верифікацію:</h5>
+                            <dl class="row">
+                                <dt class="col-sm-4">Назва твору:</dt>
+                                <dd class="col-sm-8 fw-bold">{{ result.title }}</dd>
+
+                                <dt class="col-sm-4">Виконавець (Ким захищено):</dt>
+                                <dd class="col-sm-8">{{ result.artist }}</dd>
+
+                                <dt class="col-sm-4">ISRC код:</dt>
+                                <dd class="col-sm-8">{{ result.isrc }}</dd>
+
+
+                            </dl>
+                        </div>
+                    {% else %}
+                        <div class="alert alert-success">
+                            <h4 class="alert-heading">✅ Чистий файл</h4>
+                            <p>У базі даних не знайдено записів про цей файл. Він не захищений нашою системою.</p>
+                        </div>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
