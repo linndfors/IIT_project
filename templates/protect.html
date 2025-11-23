@@ -8,25 +8,25 @@
             
             <div class="mb-4 p-5 border border-2 border-secondary border-dashed rounded" style="border-style: dashed; background-color: #f8f9fa;">
                 <label for="fileInput" class="form-label h5 text-muted" style="cursor: pointer;">
-                    Перетягніть файл сюди або натисніть
+                    Натисніть, щоб обрати файл (.wav/.mp3)
                 </label>
                 <input type="file" name="file" id="fileInput" class="form-control d-none" accept=".wav,.mp3" required onchange="document.querySelector('label').innerText = this.files[0].name">
             </div>
 
             <div class="mb-3">
-                <input type="text" name="title" class="form-control form-control-lg" placeholder="[ Назва треку ]" required>
+                <input type="text" name="title" class="form-control form-control-lg" placeholder="Назва треку" required>
             </div>
 
             <div class="mb-3">
-                <input type="text" name="artist" class="form-control form-control-lg" placeholder="[ Виконавець / Ким захищається ]" required>
+                <input type="text" name="artist" class="form-control form-control-lg" placeholder="Виконавець / Ким захищається" required>
             </div>
             
             <div class="mb-4">
-                <input type="text" name="isrc" class="form-control form-control-lg" placeholder="[ ISRC код ]" required>
+                <input type="text" name="isrc" class="form-control form-control-lg" placeholder="ISRC код" required>
             </div>
 
             <button type="submit" class="btn btn-outline-dark btn-lg w-100 py-2 fw-bold">
-                [ ЗАХИСТИТИ ]
+                ЗАХИСТИТИ
             </button>
         </form>
     </div>

@@ -9,7 +9,7 @@
             <th>Назва</th>
             <th>ISRC</th>
             <th>Статус</th>
-            <th>Сертифікат</th>
+            <th>Завантажити</th>
         </tr>
     </thead>
     <tbody>
@@ -24,15 +24,15 @@
                     <span class="badge bg-warning">В обробці</span>
                 {% endif %}
             </td>
-            <td>
+            <!-- <td>
                 {% if track.watermark %}
                     <a href="{{ url_for('download_cert', filename=track.watermark.pdf_certificate) }}">Завантажити PDF</a>
                 {% endif %}
-            </td>
+            </td> -->
             <td>
                 {% if track.watermark %}
-                    <a href="{{ url_for('download_cert', filename=track.watermark.pdf_certificate) }}" class="btn btn-sm btn-outline-secondary">PDF</a>
-                    <a href="{{ url_for('download_track', filename=track.filename) }}" class="btn btn-sm btn-success">Скачати WAV</a>
+                    <a href="{{ url_for('download_cert', filename=track.watermark.pdf_certificate) }}" class="btn btn-sm btn-outline-secondary">PDF Сертифікат</a>
+                    <a href="{{ url_for('download_track', filename=track.filename) }}" class="btn btn-sm btn-outline-secondary">.WAV аудіофайл</a>
                 {% endif %}
             </td>
         </tr>

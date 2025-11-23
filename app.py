@@ -1,19 +1,19 @@
 import os
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from reportlab.pdfgen import canvas
-from pydub import AudioSegment
+import soundfile as sf
 
 import lsb_stego 
-
+basedir = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret-key-lsb-123'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///database_lsb.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database_lsb.db')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['CERT_FOLDER'] = 'static/certificates'
 
@@ -66,7 +66,7 @@ def load_user(user_id):
     return User.query.get(int(user_id))
 
 
-def generate_pdf(track, watermark_code):
+def generate_pdf(track, watermark_code, created_at_time):
     """
     Генерує PDF-сертифікат про захист авторського права.
 
@@ -85,6 +85,7 @@ def generate_pdf(track, watermark_code):
     c.drawString(100, 690, f"Власник: {track.owner.email}")
     c.drawString(100, 650, f"Вшитий код (Hidden Payload): {watermark_code}")
     c.drawString(100, 630, f"Метод захисту: LSB Steganography (.wav)")
+    c.drawString(100, 630, f"Дата захисту: {created_at_time}")
     c.save()
     return filename
 
@@ -172,14 +173,14 @@ def protect():
                 temp_wav_path = os.path.join(app.config['UPLOAD_FOLDER'], "converted_" + wav_filename)
                 
                 try:
-                    audio = AudioSegment.from_mp3(temp_input_path)
-                    audio.export(temp_wav_path, format="wav")
+                    data, samplerate = sf.read(temp_input_path)
+                    sf.write(temp_wav_path, data, samplerate)
                     
                     os.remove(temp_input_path)
                     temp_input_path = temp_wav_path
                     filename = wav_filename
                 except Exception as e:
-                    flash(f"Помилка конвертації MP3 (перевірте ffmpeg): {e}")
+                    flash(f"Помилка обробки MP3: {e}")
                     return redirect(url_for('protect'))
 
             wm_payload = str(uuid.uuid4())[:8]
@@ -199,9 +200,9 @@ def protect():
             new_track = AudioTrack(title=title, artist=artist, isrc=isrc, filename=protected_filename, owner=current_user)
             db.session.add(new_track)
             db.session.commit()
-            
-            cert = generate_pdf(new_track, wm_payload)
-            wm_rec = WatermarkRecord(track_id=new_track.id, watermark_payload=wm_payload, pdf_certificate=cert)
+            created_at_time = date.today()
+            cert = generate_pdf(new_track, wm_payload, created_at_time)
+            wm_rec = WatermarkRecord(track_id=new_track.id, watermark_payload=wm_payload, pdf_certificate=cert, created_at=created_at_time)
             db.session.add(wm_rec)
             db.session.commit()
             
@@ -235,16 +236,18 @@ def verify():
             if ext == 'mp3':
                 wav_path = temp_check_path + ".wav"
                 try:
-                    audio = AudioSegment.from_mp3(temp_check_path)
-                    audio.export(wav_path, format="wav")
+                    data, samplerate = sf.read(temp_check_path)
+                    sf.write(wav_path, data, samplerate)
                     path_to_scan = wav_path
-                except:
+                except Exception as e:
+                    print(f"Error converting MP3 during verify: {e}")
                     pass
 
             hidden_msg = lsb_stego.decode_lsb(path_to_scan)
             
             if os.path.exists(temp_check_path): os.remove(temp_check_path)
-            if ext == 'mp3' and os.path.exists(path_to_scan): os.remove(path_to_scan)
+            if ext == 'mp3' and path_to_scan != temp_check_path and os.path.exists(path_to_scan): 
+                os.remove(path_to_scan)
             
             if hidden_msg and hidden_msg.startswith("COPYRIGHT|"):
                 extracted_id = hidden_msg.split('|')[1]
