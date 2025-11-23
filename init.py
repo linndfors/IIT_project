@@ -4,14 +4,17 @@ from flask_sqlalchemy import SQLAlchemy
 # 1. Define db globally here. Do not re-define it in app.py
 db = SQLAlchemy()
 
+
 def create_app(config_updates=None):
     app = Flask(__name__)
 
     # Default configuration
-    app.config.update({
-        "SQLALCHEMY_TRACK_MODIFICATIONS": False,
-        "SQLALCHEMY_DATABASE_URI": "sqlite:///main.db", # Default fallback
-    })
+    app.config.update(
+        {
+            "SQLALCHEMY_TRACK_MODIFICATIONS": False,
+            "SQLALCHEMY_DATABASE_URI": "sqlite:///main.db",  # Default fallback
+        }
+    )
 
     # 2. Apply updates (from app.py) BEFORE initializing db
     if config_updates:

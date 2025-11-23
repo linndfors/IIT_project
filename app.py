@@ -1,33 +1,48 @@
 import os
 import uuid
 from datetime import datetime, date
-from flask import Flask, render_template, redirect, url_for, request, flash, send_from_directory
+from flask import (
+    Flask,
+    render_template,
+    redirect,
+    url_for,
+    request,
+    flash,
+    send_from_directory,
+)
 from flask_sqlalchemy import SQLAlchemy
-from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
+from flask_login import (
+    LoginManager,
+    UserMixin,
+    login_user,
+    login_required,
+    logout_user,
+    current_user,
+)
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from reportlab.pdfgen import canvas
 import soundfile as sf
 from init import create_app
-from utils import lsb_stego 
+from utils import lsb_stego
 from models import User, AudioTrack, WatermarkRecord
 
 basedir = os.path.abspath(os.path.dirname(__file__))
 
 app_config = {
-    'SECRET_KEY': 'secret-key-lsb-123',
-    'SQLALCHEMY_DATABASE_URI': 'sqlite:///' + os.path.join(basedir, 'database_lsb.db'),
-    'UPLOAD_FOLDER': os.path.join('static', 'uploads'),
-    'CERT_FOLDER': os.path.join('static', 'certificates')
+    "SECRET_KEY": "secret-key-lsb-123",
+    "SQLALCHEMY_DATABASE_URI": "sqlite:///" + os.path.join(basedir, "database_lsb.db"),
+    "UPLOAD_FOLDER": os.path.join("static", "uploads"),
+    "CERT_FOLDER": os.path.join("static", "certificates"),
 }
 
 app = create_app(config_updates=app_config)
 
-os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-os.makedirs(app.config['CERT_FOLDER'], exist_ok=True)
+os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+os.makedirs(app.config["CERT_FOLDER"], exist_ok=True)
 
 login_manager = LoginManager(app)
-login_manager.login_view = 'login'
+login_manager.login_view = "login"
 
 
 @login_manager.user_loader
@@ -46,7 +61,7 @@ def generate_pdf(track, watermark_code, created_at_time):
     :rtype: str
     """
     filename = f"cert_{track.id}_{watermark_code}.pdf"
-    path = os.path.join(app.config['CERT_FOLDER'], filename)
+    path = os.path.join(app.config["CERT_FOLDER"], filename)
     c = canvas.Canvas(path)
     c.drawString(100, 800, "СЕРТИФІКАТ LSB ЗАХИСТУ")
     c.drawString(100, 750, f"Трек: {track.title}")
@@ -60,53 +75,60 @@ def generate_pdf(track, watermark_code, created_at_time):
     return filename
 
 
-@app.route('/')
+@app.route("/")
 def index():
     """Перенаправляє на сторінку входу."""
-    return redirect(url_for('login'))
+    return redirect(url_for("login"))
 
-@app.route('/register', methods=['GET', 'POST'])
+
+@app.route("/register", methods=["GET", "POST"])
 def register():
     """Сторінка реєстрації нового користувача."""
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
         if User.query.filter_by(email=email).first():
-            flash('Такий email вже є')
-            return redirect(url_for('register'))
+            flash("Такий email вже є")
+            return redirect(url_for("register"))
         user = User(email=email, password_hash=generate_password_hash(password))
         db.session.add(user)
         db.session.commit()
-        return redirect(url_for('login'))
-    return render_template('register.html')
+        return redirect(url_for("login"))
+    return render_template("register.html")
 
-@app.route('/login', methods=['GET', 'POST'])
+
+@app.route("/login", methods=["GET", "POST"])
 def login():
     """Сторінка входу в систему."""
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
+    if request.method == "POST":
+        email = request.form.get("email")
+        password = request.form.get("password")
         user = User.query.filter_by(email=email).first()
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            return redirect(url_for('dashboard'))
-        flash('Помилка входу')
-    return render_template('login.html')
+            return redirect(url_for("dashboard"))
+        flash("Помилка входу")
+    return render_template("login.html")
 
-@app.route('/dashboard')
+
+@app.route("/dashboard")
 @login_required
 def dashboard():
     """Особистий кабінет користувача. Відображає список захищених треків."""
-    return render_template('dashboard.html', name=current_user.email, tracks=current_user.tracks)
+    return render_template(
+        "dashboard.html", name=current_user.email, tracks=current_user.tracks
+    )
 
-@app.route('/logout')
+
+@app.route("/logout")
 @login_required
 def logout():
     """Вихід із системи."""
     logout_user()
-    return redirect(url_for('login'))
+    return redirect(url_for("login"))
 
-@app.route('/protect', methods=['GET', 'POST'])
+
+@app.route("/protect", methods=["GET", "POST"])
 @login_required
 def protect():
     """
@@ -121,67 +143,87 @@ def protect():
 
     :return: Рендер сторінки або перенаправлення на dashboard.
     """
-    if request.method == 'POST':
-        title = request.form.get('title')
-        isrc = request.form.get('isrc')
-        artist = request.form.get('artist')
-        file = request.files['file']
-        
+    if request.method == "POST":
+        title = request.form.get("title")
+        isrc = request.form.get("isrc")
+        artist = request.form.get("artist")
+        file = request.files["file"]
+
         if file:
             filename = secure_filename(file.filename)
-            ext = filename.rsplit('.', 1)[1].lower()
-            
-            if ext not in ['wav', 'mp3']:
-                flash("Підтримуються тільки WAV та MP3 файли!")
-                return redirect(url_for('protect'))
+            ext = filename.rsplit(".", 1)[1].lower()
 
-            temp_input_path = os.path.join(app.config['UPLOAD_FOLDER'], "temp_input_" + filename)
+            if ext not in ["wav", "mp3"]:
+                flash("Підтримуються тільки WAV та MP3 файли!")
+                return redirect(url_for("protect"))
+
+            temp_input_path = os.path.join(
+                app.config["UPLOAD_FOLDER"], "temp_input_" + filename
+            )
             file.save(temp_input_path)
-            
-            if ext == 'mp3':
-                wav_filename = filename.rsplit('.', 1)[0] + ".wav"
-                temp_wav_path = os.path.join(app.config['UPLOAD_FOLDER'], "converted_" + wav_filename)
-                
+
+            if ext == "mp3":
+                wav_filename = filename.rsplit(".", 1)[0] + ".wav"
+                temp_wav_path = os.path.join(
+                    app.config["UPLOAD_FOLDER"], "converted_" + wav_filename
+                )
+
                 try:
                     data, samplerate = sf.read(temp_input_path)
                     sf.write(temp_wav_path, data, samplerate)
-                    
+
                     os.remove(temp_input_path)
                     temp_input_path = temp_wav_path
                     filename = wav_filename
                 except Exception as e:
                     flash(f"Помилка обробки MP3: {e}")
-                    return redirect(url_for('protect'))
+                    return redirect(url_for("protect"))
 
             wm_payload = str(uuid.uuid4())[:8]
             protected_filename = f"protected_{wm_payload}_{filename}"
-            protected_path = os.path.join(app.config['UPLOAD_FOLDER'], protected_filename)
-            
+            protected_path = os.path.join(
+                app.config["UPLOAD_FOLDER"], protected_filename
+            )
+
             secret_message = f"COPYRIGHT|{wm_payload}"
-            success = lsb_stego.encode_lsb(temp_input_path, protected_path, secret_message)
-            
+            success = lsb_stego.encode_lsb(
+                temp_input_path, protected_path, secret_message
+            )
+
             if os.path.exists(temp_input_path):
                 os.remove(temp_input_path)
-            
+
             if not success:
                 flash("Помилка: Файл занадто малий або пошкоджений!")
-                return redirect(url_for('protect'))
+                return redirect(url_for("protect"))
 
-            new_track = AudioTrack(title=title, artist=artist, isrc=isrc, filename=protected_filename, owner=current_user)
+            new_track = AudioTrack(
+                title=title,
+                artist=artist,
+                isrc=isrc,
+                filename=protected_filename,
+                owner=current_user,
+            )
             db.session.add(new_track)
             db.session.commit()
             created_at_time = date.today()
             cert = generate_pdf(new_track, wm_payload, created_at_time)
-            wm_rec = WatermarkRecord(track_id=new_track.id, watermark_payload=wm_payload, pdf_certificate=cert, created_at=created_at_time)
+            wm_rec = WatermarkRecord(
+                track_id=new_track.id,
+                watermark_payload=wm_payload,
+                pdf_certificate=cert,
+                created_at=created_at_time,
+            )
             db.session.add(wm_rec)
             db.session.commit()
-            
-            flash('Трек успішно сконвертовано у WAV та захищено!')
-            return redirect(url_for('dashboard'))
-            
-    return render_template('protect.html')
 
-@app.route('/verify', methods=['GET', 'POST'])
+            flash("Трек успішно сконвертовано у WAV та захищено!")
+            return redirect(url_for("dashboard"))
+
+    return render_template("protect.html")
+
+
+@app.route("/verify", methods=["GET", "POST"])
 def verify():
     """
     Маршрут для аудиту (перевірки) файлів.
@@ -192,33 +234,33 @@ def verify():
     """
     verification_result = None
 
-    if request.method == 'POST':
-        file = request.files.get('file')
+    if request.method == "POST":
+        file = request.files.get("file")
 
         if not file or file.filename == "":
             flash("Будь ласка, завантажте файл.")
-            return redirect(url_for('verify'))
+            return redirect(url_for("verify"))
 
         filename = secure_filename(file.filename)
 
-        if '.' not in filename:
+        if "." not in filename:
             flash("Невірний формат файлу.")
-            return redirect(url_for('verify'))
+            return redirect(url_for("verify"))
 
-        ext = filename.rsplit('.', 1)[1].lower()
+        ext = filename.rsplit(".", 1)[1].lower()
 
-        if ext not in ['mp3', 'wav']:
+        if ext not in ["mp3", "wav"]:
             flash("Дозволені лише файли MP3 та WAV.")
-            return redirect(url_for('verify'))
+            return redirect(url_for("verify"))
 
         temp_check_path = os.path.join(
-            app.config['UPLOAD_FOLDER'], "verify_temp_" + filename
+            app.config["UPLOAD_FOLDER"], "verify_temp_" + filename
         )
         file.save(temp_check_path)
 
         path_to_scan = temp_check_path
 
-        if ext == 'mp3':
+        if ext == "mp3":
             wav_path = temp_check_path + ".wav"
             try:
                 data, samplerate = sf.read(temp_check_path)
@@ -226,49 +268,58 @@ def verify():
                 path_to_scan = wav_path
             except Exception as e:
                 flash(f"Помилка MP3 конвертації: {e}")
-                return redirect(url_for('verify'))
+                return redirect(url_for("verify"))
 
         hidden_msg = lsb_stego.decode_lsb(path_to_scan)
 
         if os.path.exists(temp_check_path):
             os.remove(temp_check_path)
 
-        if ext == 'mp3' and path_to_scan != temp_check_path and os.path.exists(path_to_scan):
+        if (
+            ext == "mp3"
+            and path_to_scan != temp_check_path
+            and os.path.exists(path_to_scan)
+        ):
             os.remove(path_to_scan)
 
         if hidden_msg and hidden_msg.startswith("COPYRIGHT|"):
-            extracted_id = hidden_msg.split('|')[1]
-            record = WatermarkRecord.query.filter_by(watermark_payload=extracted_id).first()
+            extracted_id = hidden_msg.split("|")[1]
+            record = WatermarkRecord.query.filter_by(
+                watermark_payload=extracted_id
+            ).first()
 
             if record:
                 verification_result = {
-                    'status': 'PROTECTED',
-                    'method': 'LSB Steganography',
-                    'title': record.track.title,
-                    'artist': record.track.artist,
-                    'owner': record.track.owner.email,
-                    'isrc': record.track.isrc,
-                    'watermark_id': extracted_id
+                    "status": "PROTECTED",
+                    "method": "LSB Steganography",
+                    "title": record.track.title,
+                    "artist": record.track.artist,
+                    "owner": record.track.owner.email,
+                    "isrc": record.track.isrc,
+                    "watermark_id": extracted_id,
                 }
 
         if not verification_result:
-            verification_result = {'status': 'CLEAN'}
+            verification_result = {"status": "CLEAN"}
 
-        return render_template('verify.html', result=verification_result)
+        return render_template("verify.html", result=verification_result)
 
-    return render_template('verify.html', result=None)
+    return render_template("verify.html", result=None)
 
-@app.route('/download_cert/<filename>')
+
+@app.route("/download_cert/<filename>")
 def download_cert(filename):
     """Завантаження PDF-сертифіката."""
-    return send_from_directory(app.config['CERT_FOLDER'], filename)
+    return send_from_directory(app.config["CERT_FOLDER"], filename)
 
-@app.route('/download_track/<filename>')
+
+@app.route("/download_track/<filename>")
 def download_track(filename):
     """Завантаження захищеного WAV-файлу."""
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
+    return send_from_directory(app.config["UPLOAD_FOLDER"], filename)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     with app.app_context():
         db.create_all()
     app.run(debug=True)

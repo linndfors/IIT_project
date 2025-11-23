@@ -208,6 +208,6 @@ __marimo__/
 .DS_Store
 check_db.py
 database_lsb.db
-static/
-instance/
 docs/
+instance/
+static/
