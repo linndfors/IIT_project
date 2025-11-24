@@ -23,7 +23,7 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 from reportlab.pdfgen import canvas
 import soundfile as sf
-from init import create_app
+from init import create_app, db
 from utils import lsb_stego
 from models import User, AudioTrack, WatermarkRecord
 
@@ -63,14 +63,14 @@ def generate_pdf(track, watermark_code, created_at_time):
     filename = f"cert_{track.id}_{watermark_code}.pdf"
     path = os.path.join(app.config["CERT_FOLDER"], filename)
     c = canvas.Canvas(path)
-    c.drawString(100, 800, "СЕРТИФІКАТ LSB ЗАХИСТУ")
-    c.drawString(100, 750, f"Трек: {track.title}")
-    c.drawString(100, 730, f"Артист: {track.artist}")
+    c.drawString(100, 800, "LSB PROTECTION CERTIFICATE")
+    c.drawString(100, 750, f"Audio title: {track.title}")
+    c.drawString(100, 730, f"Artist: {track.artist}")
     c.drawString(100, 710, f"ISRC: {track.isrc}")
-    c.drawString(100, 690, f"Власник: {track.owner.email}")
-    c.drawString(100, 650, f"Вшитий код (Hidden Payload): {watermark_code}")
-    c.drawString(100, 630, f"Метод захисту: LSB Steganography (.wav)")
-    c.drawString(100, 600, f"Дата захисту: {created_at_time}")
+    c.drawString(100, 690, f"Owner mail: {track.owner.email}")
+    c.drawString(100, 650, f"Hidden Payload: {watermark_code}")
+    c.drawString(100, 630, f"Protection method: LSB Steganography (.wav)")
+    c.drawString(100, 600, f"Protection date: {created_at_time}")
     c.save()
     return filename
 
