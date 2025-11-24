@@ -73,7 +73,6 @@ def decode_lsb(file_path):
         song = wave.open(file_path, mode="rb")
         frame_bytes = bytearray(list(song.readframes(song.getnframes())))
 
-        # Витягуємо LSB
         extracted_bits = [frame_bytes[i] & 1 for i in range(len(frame_bytes))]
 
         chars = []
@@ -85,10 +84,9 @@ def decode_lsb(file_path):
             char_code = int("".join(map(str, byte)), 2)
             chars.append(chr(char_code))
 
-            # Перевіряємо маркер кінця
             if len(chars) >= 8 and "".join(chars[-8:]) == "#####END":
                 song.close()
-                return "".join(chars[:-8])  # Повертаємо текст без маркера
+                return "".join(chars[:-8])
 
         song.close()
         return None
